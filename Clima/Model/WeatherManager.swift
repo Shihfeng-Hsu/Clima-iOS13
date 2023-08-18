@@ -7,17 +7,37 @@
 //
 
 import Foundation
+import CoreLocation
 
 struct WeatherManager{
 
     let weatherURL = "https://api.openweathermap.org/data/2.5/weather?&appid=0fc70a34c94166385a34d786a285ded6&units=metric"
     
-    func fetchWeather(_ cityName:String){
-        let urlString = "\(weatherURL)&q=\(cityName)"
-        performRequest(urlString)
-    }
+    var delegate: WeatherManagerDelegate?
     
-    func performRequest(_ urlSting:String){
+    
+//    func fetchWeather(_ cityName:String?,latitude:CLLocationDegrees?, longitude:CLLocationDegrees?){
+//        if let cityName = cityName{
+//            let urlString = "\(weatherURL)&q=\(cityName)"
+//            performRequest(with: urlString)
+//        }else if let latitude = latitude, let longitude = longitude{
+//            let urlString = "\(weatherURL)&lat=\(String(describing: latitude))&lon=\(String(describing: longitude))"
+//            performRequest(with: urlString)
+//        }
+//    }
+//    
+    //surprise! Swift can accept multiple function in same name!
+        func fetchWeather(_ cityName:String){
+                let urlString = "\(weatherURL)&q=\(cityName)"
+                performRequest(with: urlString)
+            }
+            func fetchWeather(latitude:CLLocationDegrees, longitude:CLLocationDegrees){
+                    let urlString = "\(weatherURL)&lat=\(latitude)&lon=\(longitude)"
+                    performRequest(with: urlString)
+                }
+    
+    //Use "with" as the parameter name to make parameter more readable.
+    func performRequest(with urlSting:String){
         if let url = URL(string:urlSting){
             let session = URLSession(configuration: .default)
 //            let task = session.dataTask(with: url) { (data, response, error) in
@@ -32,13 +52,20 @@ struct WeatherManager{
 //            }
             let task = session.dataTask(with: url, completionHandler: { (data, response, error) in
                                 if error != nil {
-                                    print(error!)
+                                    self.delegate?.didFailWithError(error: error!)
                                     return
                                 }
                                 if let safeData = data {
                                     if let weather = self.parseJSON(weatherData: safeData) {
-                                        let weatherVC = WeatherViewController()
-                                        weatherVC.didUpdateWeather(weather)
+                                        //Not reuseable//
+//                                        let weatherVC = WeatherViewController()
+//                                        weatherVC.didUpdateWeather(weather)
+                                        
+                                        //reuseable// ---> with delegate
+                                        //self keyword infront of .delegate is needed, because if we have many delegates, when calling the delegates without self keyword would come acorss errors.
+                                        //pass self into the function, will bring the whole struct into the delegate.
+                                        self.delegate?.didUpdateWeather( self, weather)
+                                        
                                     }
                                 }
                             })
@@ -49,7 +76,9 @@ struct WeatherManager{
     func parseJSON(weatherData: Data) -> WeatherModal? {
         let decoder = JSONDecoder()
         do{
-          let decodedData =  try decoder.decode(WeatherData.self, from: weatherData)
+            //func decode<T>(_ type: T.Type, from data: Data) throws -> T where T : Decodable
+            //The WeatherData is a struct e.g a concept, So when we use it to be a Realized items, the ".self" is needed.
+            let decodedData =  try decoder.decode(WeatherData.self, from: weatherData)
             
             let id = decodedData.weather[0].id
             let temp = decodedData.main.temp
@@ -63,7 +92,7 @@ struct WeatherManager{
             
            
         } catch {
-            print(error)
+            delegate?.didFailWithError(error: error)
             return nil
         }
        
